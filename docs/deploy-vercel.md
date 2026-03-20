@@ -17,6 +17,8 @@
 
 生产环境的 **回调地址** 必须与代码、环境变量 **完全一致**。
 
+**不要**填成站点首页（如 `https://xxx.vercel.app/` 或 `https://xxx.vercel.app`）。若只填根路径，授权后会回到 `/?code=...`，无法换 token，首页会一直显示「尚未登录」。正确路径末尾必须是 **`/api/auth/secondme/callback`**。
+
 ### 1. 回调路径（本项目固定）
 
 ```
@@ -128,7 +130,7 @@ Production / Preview 建议：**Production 用正式密钥；Preview 可单独�
 
 1. 打开 `https://<你的域名>/`  
 2. 点击 **使用 SecondMe 登录** → 应跳转 SecondMe → 授权后回到 `/?login=success`  
-3. 若出现 `invalid_oauth_state`：多为 Cookie / 多标签页；可重试单标签  
+3. 若出现 `invalid_oauth_state`：见下文 **§八.4**，按清单排查（多为「登录入口域名」与「回调域名」不一致）  
 4. 若出现 `redirect_uri_mismatch`：检查 SecondMe 控制台与 `SECONDME_REDIRECT_URI` 是否**完全一致**（含 https、无末尾斜杠差异）  
 5. 走一遍 `/create` → `/simulation` → `/result`（必要时先关 `DEMO_MODE` 测真实 LLM）
 
@@ -150,6 +152,31 @@ Preview URL 每次不同，SecondMe 未登记该 URL 时会失败。可选：
 ### 3. 生产环境 Cookie
 
 回调里已使用 `secure: process.env.NODE_ENV === "production"`，Vercel 上为 **HTTPS**，Cookie 行为正常。
+
+### 4. `invalid_oauth_state`（登录回调异常）
+
+含义：回调时无法校验 OAuth `state`（见 `src/app/api/auth/secondme/callback/route.ts`）。
+
+**当前实现**：`state` 使用 **`SECONDME_CLIENT_SECRET` 做 HMAC 签名**（`src/lib/oauth-state.ts`），**不再依赖 Cookie** 比对，可避免部分环境下重定向后 Cookie 未带上导致的误报。请确保 Vercel 已配置 **`SECONDME_CLIENT_SECRET`** 且与 SecondMe 后台一致。
+
+**旧版行为（Cookie）**：若仍失败，请检查是否混用域名 / 多标签页（见上表）。
+
+**最常见原因（Vercel）：域名不一致**
+
+| 情况 | 说明 |
+|------|------|
+| **入口 ≠ 回调** | 在 `https://preview-xxx.vercel.app` 点登录，Cookie 写在该预览域；但 `SECONDME_REDIRECT_URI` 配的是 `https://你的项目.vercel.app/...`，授权后回到**生产域**，读不到预览域的 Cookie → `invalid_oauth_state`。 |
+| **www / 裸域混用** | 从 `www.example.com` 进站登录，回调却是 `example.com`（或相反），Cookie 域不同。 |
+
+**处理步骤（按顺序试）**
+
+1. **整段流程只用同一个域名**：浏览器地址栏从点「登录」到回到站点，主机名应一致（建议只用 **Production** 的 `https://xxx.vercel.app` 或你的自定义域测 OAuth）。  
+2. **Vercel 环境变量** `SECONDME_REDIRECT_URI` 与 **SecondMe 后台** 里的重定向 URI **完全一致**，且与你在浏览器里访问的站点 **同协议、同主机**（`https` + 同一域名）。  
+3. **单标签页**完成：先清站点 Cookie 或无痕窗口，只开一个标签，点一次登录，不要多开多个登录流程。  
+4. 授权页不要停留过久（State Cookie 有效期约 30 分钟，超时需重新点登录）。  
+5. 避免在 **第三方 App 内置浏览器**（部分机型会限制 Cookie）里测；用系统 Chrome/Safari/Edge。
+
+若仅在 Preview 上测：要么在 SecondMe 为该 Preview 域名单独登记回调 + Vercel Preview 环境单独配 `SECONDME_REDIRECT_URI`，要么只在 Production 域名测登录。
 
 ---
 

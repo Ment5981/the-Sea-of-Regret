@@ -21,11 +21,32 @@ export function HomeClient() {
       .catch(() => setDemoMode(false));
   }, []);
 
+  /**
+   * SecondMe / OAuth 若把「重定向 URI」配成站点根路径（如 https://xxx.vercel.app/），
+   * 授权后会回到 /?code=...&state=... 而不会命中 /api/auth/secondme/callback，导致无法换 token、首页一直显示「尚未登录」。
+   * 这里自动转发到服务端回调完成换票。
+   */
+  useEffect(() => {
+    if (searchParams.get("login") === "success") return;
+
+    const code = searchParams.get("code");
+    const state = searchParams.get("state");
+    if (!code || !state) return;
+
+    if (typeof window === "undefined") return;
+    const q = window.location.search;
+    window.location.replace(`/api/auth/secondme/callback${q}`);
+  }, [searchParams]);
+
   const statusText = useMemo(() => {
     const login = searchParams.get("login");
     const error = searchParams.get("error");
+    const code = searchParams.get("code");
+    const state = searchParams.get("state");
     if (login === "success") return "SecondMe OAuth 登录成功。";
     if (error) return `登录回调异常：${error}`;
+    if (code && state)
+      return "正在完成登录（已将 OAuth 回调转发到服务端）…";
     return "尚未登录。";
   }, [searchParams]);
 

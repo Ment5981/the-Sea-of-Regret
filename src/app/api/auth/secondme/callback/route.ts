@@ -6,6 +6,7 @@ import {
   SECONDME_COOKIE_OAUTH_STATE,
   SECONDME_COOKIE_REFRESH_TOKEN,
 } from "@/lib/secondme";
+import { verifySignedOAuthState } from "@/lib/oauth-state";
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -22,9 +23,13 @@ export async function GET(request: NextRequest) {
   }
 
   const cookieStore = await cookies();
+  /** 优先：HMAC 签名 state（不依赖 Cookie，避免重定向丢 Cookie）。兼容：旧版 UUID + Cookie。 */
   const savedState = cookieStore.get(SECONDME_COOKIE_OAUTH_STATE)?.value;
+  const stateOk =
+    verifySignedOAuthState(state) ||
+    Boolean(savedState && savedState === state);
 
-  if (!savedState || savedState !== state) {
+  if (!stateOk) {
     return NextResponse.redirect(new URL("/?error=invalid_oauth_state", request.url));
   }
 

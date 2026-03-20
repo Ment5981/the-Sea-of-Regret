@@ -1,25 +1,12 @@
-import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
-import {
-  getSecondMeOAuthAuthorizeUrl,
-  SECONDME_COOKIE_OAUTH_STATE,
-} from "@/lib/secondme";
+import { getSecondMeOAuthAuthorizeUrl } from "@/lib/secondme";
+import { createSignedOAuthState } from "@/lib/oauth-state";
 
 export async function GET() {
   try {
-    const state = randomUUID();
+    const state = createSignedOAuthState();
     const redirectUrl = getSecondMeOAuthAuthorizeUrl(state);
-    const response = NextResponse.redirect(redirectUrl);
-
-    response.cookies.set(SECONDME_COOKIE_OAUTH_STATE, state, {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-      path: "/",
-      maxAge: 60 * 10,
-    });
-
-    return response;
+    return NextResponse.redirect(redirectUrl);
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Failed to start OAuth login";
