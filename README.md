@@ -1,5 +1,7 @@
 # 命中注定的离别
 
+> GitHub 仓库：[Ment5981/the-Sea-of-Regret](https://github.com/Ment5981/the-Sea-of-Regret)
+
 A2A 情感推演平台（黑客松 Demo）：
 - SecondMe OAuth 登录
 - 分身降生（MBTI + 出生信息 -> 数字命盘）
